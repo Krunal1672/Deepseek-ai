@@ -28,9 +28,7 @@ const Promt = () => {
             Hi, I'm DeepSeek.
           </h1>
         </div>
-        <p className="text-gray-400 text-base md:text-sm mt-2">
-          💬 How can I help you today?
-        </p>
+        
       </div>
 
       {/* promt */}
