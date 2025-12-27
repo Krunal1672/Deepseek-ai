@@ -1,16 +1,77 @@
 import { ArrowUp, Bot, Globe, Paperclip } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import logo from "../assets/logo.png"
+import toast from 'react-hot-toast'
+import axios from 'axios'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark as codeTheme } from 'react-syntax-highlighter/dist/esm/styles/prism'
+
 
 const Promt = () => {
   const [inputValue,setInputValue]=useState("")
   const [typeMessage,setTypeMessage]=useState(" ")
 
-  const handelSend=()=>{
+  const [promt,setPromt]=useState([])
+  const [loading,setLoading]=useState(false)
+  const promtEndRef = useRef();
+
+  useEffect(()=>{
+    const user = JSON.parse(localStorage.getItem("user"))
+    const savedPromt = localStorage.getItem(`promtHistory_${user._id}`);
+    if(savedPromt){
+      setPromt(JSON.parse(savedPromt))
+    }
+  },[])
+
+  useEffect(()=>{
+    const user = JSON.parse(localStorage.getItem("user"))
+    localStorage.setItem(`promtHistory_${user._id}`,JSON.stringify(promt))
+  },[promt])
+
+  useEffect(()=>{
+    promtEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  },[promt,loading])
+
+  
+
+  const handelSend= async()=>{
     const trimmed = inputValue.trim();
     if(!trimmed) return;
     setTypeMessage(trimmed)
     setInputValue("") 
+    setLoading(true)
+
+    try {
+      const token = localStorage.getItem("token")
+      const {data} = await axios.post(
+        "http://localhost:4001/api/v1/deepseekai/promt",
+        {content:trimmed},
+        {
+          headers:{
+            Authorization:`Bearer ${token}`
+          },
+          withCredentials:true
+        }
+      )
+      setPromt((prev)=>[
+        ...prev,
+        {role:"user",content:trimmed},
+        {role:"assistant",content:data.replay} 
+      ])
+    } catch (error) {
+      setPromt((prev)=>[
+        ...prev,
+        {role:"user",content:trimmed},
+        {role:"assistant",content:"Sorry, I am unable to process your request at the moment."} 
+      ])
+      toast.error(error.message || "Failed to send prompt")
+    }
+    finally{
+      setLoading(false)
+      setTypeMessage("null")
+    }
   }
 
   const handelKeyDown=(e)=>{
@@ -35,16 +96,66 @@ const Promt = () => {
 
       {/* promt */}
       <div className="w-full max-w-4xl flex-1 overflow-y-auto mt-6 mb-4 space-y-4 max-h-[60vh] px-1">
-        {typeMessage?.trim().length > 0 && (
-          <div className='w-full flex justify-end '>
-            <div className='bg-blue-700  text-white self-end max-w-[75%] rounded-2xl px-4 py-2'>
-              {typeMessage}
+        {promt.map((msg,index)=>(
+          <div key={index} 
+              className={`w-full flex ${msg.role === "user"?"justify-end":"justify-start"}`}>
+              {msg.role === "assistant"?(
+                //assistant response with markdown support
+                  <div className="w-full bg-[#232323] text-white rounded-xl px-4 py-3 text-sm whitespace-pre-wrap">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code({ node, inline, className, children, ...props }) {
+                        const match = /language-(\w+)/.exec(className || "");
+                        return !inline && match ? (
+                          <SyntaxHighlighter
+                            style={codeTheme}
+                            language={match[1]}
+                            PreTag="div"
+                            className="rounded-lg mt-2"
+                            {...props}
+                          >
+                            {String(children).replace(/\n$/, "")}
+                          </SyntaxHighlighter>
+                        ) : (
+                          <code
+                            className="bg-gray-800 px-1 py-0.5 rounded"
+                            {...props}
+                          >
+                            {children}
+                          </code>
+                        );
+                      },
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
+              ):(
+                // User message - simple text display 
+                <div className="w-[50%] bg-blue-600 text-white rounded-xl px-4 py-3 text-sm whitespace-pre-wrap self-start">
+                {msg.content}
+                </div>
+              )}
+          </div>
+        ))}
+        {loading && typeMessage && (
+          <div  className="whitespace-pre-wrap px-4 py-3 rounded-2xl text-sm break-words bg-blue-600
+               text-white self-end ml-auto max-w-[40%]">
+            {typeMessage}
+          </div>
+        )}  
+         {loading && (
+          <div className="flex justify-start w-full">
+            <div className="bg-[#2f2f2f] text-white px-4 py-3 rounded-xl text-sm animate-pulse">
+               Loading...
             </div>
           </div>
         )} 
+        <div ref={promtEndRef} />
        </div>
        {/* input */}
-       <div className="w-full max-w-4xl relative mt-auto">
+       <div className="w-full max-w-4xl relative mt-auto"> 
         <div className="bg-[#2f2f2f] rounded-[2rem] px-4 md:px-6 py-6 md:py-8 shadow-md">
             <input   type="text" 
                      value={inputValue}

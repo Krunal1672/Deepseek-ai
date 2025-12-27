@@ -2,9 +2,8 @@ import OpenAI from "openai";
 import { Promt } from "../model/promt.model.js";
 const openai = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
-  apiKey:"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",
+  apiKey:"process.env.OPENAI_API_KEY",
 });
-console.log(openai.apiKey);
 
 // sendpromt - /api/v1/deepseekai/promt
 export const sendPromt =async(req,res)=>{
